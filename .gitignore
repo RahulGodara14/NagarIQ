@@ -1,0 +1,18 @@
+# Environments
+venv/
+env/
+.venv/
+__pycache__/
+*.pyc
+
+# IDEs
+.vscode/
+.idea/
+.DS_Store
+
+# User specified ignore items
+how to run
+download file/
+nagariq_production_model.zip
+backend/model/*.safetensors
+backend/model/tokenizer.json
