@@ -28,6 +28,7 @@ from app import heat_island # ← Heat Island Risk Engine
 from app import nagar_score # ← NagarScore Gamification
 from app import nagar_yatra # ← NagarYatra Smart Transit
 from app import nagar_khata # ← NagarKhata Municipal Billing
+from app import vidya_track # ← VidyaTrack School Monitoring
 
 
 # Create database tables
@@ -43,6 +44,7 @@ async def lifespan(app):
     jal_task = asyncio.create_task(jal_shakti.water_monitoring_loop())
     heat_task = asyncio.create_task(heat_island.heat_monitoring_loop())
     transit_task = asyncio.create_task(nagar_yatra.transit_monitoring_loop())
+    vidya_task = asyncio.create_task(vidya_track.attendance_monitoring_loop())
     
     yield
     
@@ -51,7 +53,8 @@ async def lifespan(app):
     jal_task.cancel()
     heat_task.cancel()
     transit_task.cancel()
-    for task in [flood_task, jal_task, heat_task, transit_task]:
+    vidya_task.cancel()
+    for task in [flood_task, jal_task, heat_task, transit_task, vidya_task]:
         try:
             await task
         except asyncio.CancelledError:
@@ -1517,3 +1520,17 @@ def get_payment_history(citizen_id: str, current_user: dict = Depends(auth.get_c
     """Returns the complete payment receipt history for a citizen."""
     history = nagar_khata.get_payment_history(citizen_id)
     return {"status": "success", "history": history}
+
+# ═══════════════════════════════════════════════════════
+# 🎓 VIDYATRACK: GOVERNMENT SCHOOLS & STUDENTS MONITORING
+# ═══════════════════════════════════════════════════════
+
+@app.get("/api/v1/vidya/schools")
+def get_vidya_schools():
+    """Returns live stats and attendance details for all Indore government schools."""
+    return {"status": "success", "schools": vidya_track.get_all_schools()}
+
+@app.get("/api/v1/vidya/events")
+def get_vidya_events():
+    """Returns recent RFID student check-in and check-out event logs."""
+    return {"status": "success", "events": vidya_track.get_recent_events()}
