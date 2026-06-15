@@ -123,25 +123,25 @@ export default function DigitalTwin({ onClose }) {
             console.log('[DigitalTwin] Ion Bing Maps imagery loaded ✅');
           } catch (e) {
             console.warn('[DigitalTwin] Ion imagery failed:', e.message);
-            // Fallback: CartoDB — CORS-enabled, free, no key needed
+            // Fallback: OpenStreetMap — CORS-enabled, free, no key needed
             viewer.imageryLayers.addImageryProvider(
               new Cesium.UrlTemplateImageryProvider({
-                url: 'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+                url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 maximumLevel: 19,
-                credit: '© OpenStreetMap contributors © CARTO',
+                credit: '© OpenStreetMap contributors',
               })
             );
           }
         } else {
-          // No token: CartoDB Voyager — free, CORS-enabled tile server
+          // No token: OpenStreetMap — free, CORS-enabled tile server
           viewer.imageryLayers.addImageryProvider(
             new Cesium.UrlTemplateImageryProvider({
-              url: 'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+              url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               maximumLevel: 19,
-              credit: '© OpenStreetMap contributors © CARTO',
+              credit: '© OpenStreetMap contributors',
             })
           );
-          console.log('[DigitalTwin] CartoDB imagery loaded ✅ (no Ion token)');
+          console.log('[DigitalTwin] OpenStreetMap imagery loaded ✅ (no Ion token)');
         }
 
         if (CESIUM_TOKEN) {

@@ -6,6 +6,16 @@
   max-height: none !important;
 }
 
+/* Premium Dark Mode filter for standard OpenStreetMap tiles */
+.leaflet-container {
+  background: #0a0f1d !important;
+}
+
+.dark-tiles img.leaflet-tile,
+.leaflet-tile {
+  filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%) saturate(70%) !important;
+}
+
 @keyframes shimmer {
   100% {
     transform: translateX(100%);
