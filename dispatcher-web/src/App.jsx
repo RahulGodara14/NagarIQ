@@ -4,7 +4,8 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import axios from 'axios';
 import { ShieldAlert, MapPin, Clock, AlertTriangle, CheckCircle2, Navigation } from 'lucide-react';
-import { MapContainer, TileLayer, Marker, Popup, CircleMarker, Tooltip, Polyline, Polygon, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, CircleMarker, Tooltip, Polyline, Polygon, useMapEvents, ZoomControl } from 'react-leaflet';
+import HeatmapLayer from './HeatmapLayer.jsx';
 // 1. The Red SOS Icon
 const pulsingRedIcon = L.divIcon({
   className: 'custom-icon',
@@ -79,6 +80,32 @@ const hospitalIcon = (status) => L.divIcon({
   iconSize: [36, 42],
   iconAnchor: [18, 42],
 });
+
+// 7. Government School Icon (VidyaTrack)
+const schoolIcon = L.divIcon({
+  className: 'custom-icon',
+  html: `<div class="w-7 h-7 bg-sky-500 rounded-lg border-2 border-white flex items-center justify-center shadow-[0_0_10px_rgba(14,165,233,0.6)]">
+            <span class="text-white text-[14px]">🎓</span>
+         </div>`,
+  iconSize: [28, 28],
+});
+
+// 8. Heat Zone Icon (Heatwave Risk Engine)
+const heatZoneIcon = (riskLevel) => {
+  const borderColor = riskLevel === 'CRITICAL' ? 'border-red-500' :
+                      riskLevel === 'HIGH' ? 'border-orange-500' : 'border-yellow-500';
+  const shadowColor = riskLevel === 'CRITICAL' ? 'shadow-red-500/50' :
+                      riskLevel === 'HIGH' ? 'shadow-orange-500/50' : 'shadow-yellow-500/50';
+  return L.divIcon({
+    className: 'custom-icon',
+    html: `<div class="relative w-8 h-8 rounded-full border-2 bg-slate-900/90 ${borderColor} flex items-center justify-center shadow-[0_0_8px_rgba(0,0,0,0.5)] ${shadowColor} transform hover:scale-110 transition-transform">
+             <span class="text-white text-[13px]">🌡️</span>
+             <span class="absolute -bottom-1 -right-1 text-[11px] animate-pulse">⚠️</span>
+           </div>`,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16]
+  });
+};
 
 // --- 🚨 NAGARSANKAT: GEOFENCE DRAWER COMPONENT ---
 function GeofenceDrawer({ active, points, setPoints }) {
@@ -236,6 +263,45 @@ function App() {
   const [geofencePoints, setGeofencePoints] = useState([]);
   const [geofenceMessage, setGeofenceMessage] = useState('');
   const [geofenceLoading, setGeofenceLoading] = useState(false);
+
+  // --- VIDYATRACK: SCHOOL MONITORING STATE ---
+  const [showVidya, setShowVidya] = useState(false);
+  const [vidyaSchools, setVidyaSchools] = useState([]);
+  const [vidyaEvents, setVidyaEvents] = useState([]);
+  const [showVidyaPanel, setShowVidyaPanel] = useState(false);
+  const vidyaIntervalRef = useRef(null);
+
+  const fetchVidyaData = async () => {
+    try {
+      const [schoolsRes, eventsRes] = await Promise.all([
+        axios.get('http://localhost:8000/api/v1/vidya/schools'),
+        axios.get('http://localhost:8000/api/v1/vidya/events'),
+      ]);
+      if (schoolsRes.data.status === 'success') {
+        setVidyaSchools(schoolsRes.data.schools);
+      }
+      if (eventsRes.data.status === 'success') {
+        setVidyaEvents(eventsRes.data.events);
+      }
+    } catch (e) {
+      console.error('[VidyaTrack] Fetch error:', e);
+    }
+  };
+
+  const toggleVidya = async () => {
+    const next = !showVidya;
+    setShowVidya(next);
+    if (next) {
+      await fetchVidyaData();
+      vidyaIntervalRef.current = setInterval(fetchVidyaData, 5000);
+      setShowVidyaPanel(true);
+    } else {
+      clearInterval(vidyaIntervalRef.current);
+      setVidyaSchools([]);
+      setVidyaEvents([]);
+      setShowVidyaPanel(false);
+    }
+  };
 
   const broadcastGeofenceAlert = async () => {
     if (geofencePoints.length < 3 || !geofenceMessage.trim()) return;
@@ -657,7 +723,10 @@ function App() {
       fetchHeatData();
       fetchLeaderboard();
     }, 3000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      if (vidyaIntervalRef.current) clearInterval(vidyaIntervalRef.current);
+    };
   }, []);
 
   const openDrishti = (incidentId) => {
@@ -815,6 +884,20 @@ function App() {
               🚌 NagarYatra Transit
               {showTransit && liveBuses.length > 0 && (
                 <span className="ml-1 bg-blue-600 text-white text-[9px] px-1.5 py-0.5 rounded-full font-black">{liveBuses.length} LIVE</span>
+              )}
+            </button>
+            {/* VidyaTrack Govt Schools — full width */}
+            <button
+              onClick={toggleVidya}
+              className={`col-span-2 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-[11px] font-bold tracking-wide uppercase transition-all duration-300 border ${
+                showVidya
+                  ? 'bg-sky-500/10 border-sky-400/50 text-sky-300 shadow-[0_0_15px_rgba(56,189,248,0.2)]'
+                  : 'bg-[#161e33]/50 border-[#2d3748]/50 text-slate-400 hover:bg-[#1e293b]'
+              }`}
+            >
+              🎓 VidyaTrack Schools
+              {showVidya && vidyaSchools.length > 0 && (
+                <span className="ml-1 bg-sky-600 text-white text-[9px] px-1.5 py-0.5 rounded-full font-black">{vidyaSchools.length} MONITORED</span>
               )}
             </button>
           </div>
@@ -1036,6 +1119,81 @@ function App() {
             </div>
           )}
 
+          {/* --- VIDYATRACK: SCHOOLS & STUDENTS LIVE PANEL --- */}
+          {showVidyaPanel && vidyaSchools.length > 0 && (
+            <div className="bg-[#0b1329]/80 border border-sky-400/20 rounded-2xl p-4 backdrop-blur-xl shadow-lg mb-2">
+              <div className="flex justify-between items-center mb-3">
+                <h3 className="text-sky-400 font-bold text-[11px] tracking-[0.15em] uppercase flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse" />
+                  VidyaTrack — School Monitoring
+                </h3>
+                <span className="bg-sky-500/10 text-sky-300 text-[9px] px-2 py-1 rounded font-bold uppercase tracking-widest border border-sky-500/20">
+                  RFID IoT Feed
+                </span>
+              </div>
+              
+              {/* School Cards */}
+              <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1 custom-scrollbar mb-4">
+                {vidyaSchools.map(s => {
+                  const pct = s.attendance_rate;
+                  return (
+                    <div key={s.id} className="rounded-xl p-3 border border-slate-700/50 bg-[#0a0f1d]/60 hover:border-sky-500/30 transition-all">
+                      <div className="flex justify-between items-start mb-1">
+                        <span className="text-[11px] font-bold text-white truncate max-w-[190px]">{s.name}</span>
+                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${
+                          pct >= 85 ? 'bg-emerald-500/20 text-emerald-300' :
+                          pct >= 75 ? 'bg-amber-500/20 text-amber-300' :
+                          'bg-red-500/20 text-red-300'
+                        }`}>{pct}% Present</span>
+                      </div>
+                      
+                      {/* Attendance Bar */}
+                      <div className="h-1.5 bg-[#050914] rounded-full overflow-hidden mb-2 border border-slate-800">
+                        <div
+                          className={`h-full rounded-full transition-all duration-700 ${
+                            pct >= 85 ? 'bg-emerald-400' :
+                            pct >= 75 ? 'bg-amber-400' : 'bg-red-400'
+                          }`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      
+                      <div className="flex justify-between text-[10px] text-slate-400">
+                        <span>👥 {s.active_students} / {s.total_enrolled} active</span>
+                        <span>Smart Class: {s.smart_classrooms}</span>
+                        <span className={s.meal_status === 'SERVED' ? 'text-emerald-400' : 'text-amber-400'}>
+                          🍲 {s.meal_status}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* RFID Live Event Feed */}
+              <div className="border-t border-slate-700/50 pt-3">
+                <p className="text-sky-300 text-[10px] font-black tracking-widest uppercase mb-2">📡 Live RFID Check-in logs</p>
+                {vidyaEvents.length === 0 ? (
+                  <p className="text-slate-500 text-[10px] text-center py-2">Waiting for RFID events...</p>
+                ) : (
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1 custom-scrollbar">
+                    {vidyaEvents.map(e => (
+                      <div key={e.id} className="text-[9px] bg-slate-900/50 border border-slate-800 rounded p-1.5 flex flex-col font-mono text-slate-300">
+                        <div className="flex justify-between text-slate-400 mb-0.5">
+                          <span className={e.type === 'CHECK_IN' ? 'text-emerald-400' : e.type === 'CHECK_OUT' ? 'text-rose-400' : 'text-blue-400'}>
+                            [{e.type}]
+                          </span>
+                          <span>{e.timestamp}</span>
+                        </div>
+                        <span className="truncate">{e.message}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {incidents.length === 0 ? (
             <div className="flex flex-col items-center justify-center p-10 text-center text-slate-500 mt-10 border border-dashed border-[#2d3748] rounded-2xl bg-[#161e33]/20">
                <span className="text-4xl mb-3 opacity-30">✨</span>
@@ -1225,11 +1383,17 @@ function App() {
           zoom={12}
           className="w-full h-full"
           zoomControl={false}
+          scrollWheelZoom={true}
+          doubleClickZoom={true}
+          dragging={true}
+          touchZoom={true}
         >
-          {/* Free Dark Mode Map Tiles from CartoDB */}
+          <ZoomControl position="topright" />
+          {/* Free Map Tiles from OpenStreetMap with custom dark mode filter */}
           <TileLayer
-            url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            className="dark-tiles"
           />
           {/* --- NEW: NAGARSANKAT DRAWING LAYER --- */}
           <GeofenceDrawer active={showGeofence} points={geofencePoints} setPoints={setGeofencePoints} />
@@ -1324,6 +1488,48 @@ function App() {
                 {node.name}: {node.predicted_volume}%
               </Tooltip>
             </CircleMarker>
+          ))}
+
+          {/* --- VIDYATRACK: GOVERNMENT SCHOOL MARKERS --- */}
+          {showVidya && vidyaSchools.map((school) => (
+            <Marker
+              key={school.id}
+              position={[school.lat, school.lng]}
+              icon={schoolIcon}
+            >
+              <Popup className="custom-popup">
+                <div className="p-1 min-w-[200px]">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="bg-sky-500/20 text-sky-400 text-[10px] px-2 py-0.5 rounded font-bold uppercase">Govt School</span>
+                    <span className="text-slate-400 text-[9px]">{school.id}</span>
+                  </div>
+                  <h3 className="text-white font-bold text-sm mb-1">{school.name}</h3>
+                  <p className="text-slate-400 text-[11px] mb-2">{school.type}</p>
+                  
+                  <div className="grid grid-cols-2 gap-1 text-[10px] mb-3">
+                    <div className="bg-slate-800 rounded p-1.5 text-center">
+                      <p className="font-black text-sm text-sky-400">{school.active_students}</p>
+                      <p className="text-slate-500 text-[8px] uppercase">Active Students</p>
+                    </div>
+                    <div className="bg-slate-800 rounded p-1.5 text-center">
+                      <p className="font-black text-sm text-emerald-400">{school.attendance_rate}%</p>
+                      <p className="text-slate-500 text-[8px] uppercase">Attendance</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1 text-[10px] text-slate-300">
+                    <p>🧑‍🏫 <b>Principal:</b> {school.principal}</p>
+                    <p>📞 <b>Phone:</b> {school.contact}</p>
+                    <p>🍲 <b>Mid-day Meal:</b> <span className={school.meal_status === 'SERVED' ? 'text-emerald-400 font-bold' : 'text-amber-400 font-bold'}>{school.meal_status}</span> {school.meal_status === 'SERVED' && `(${school.meals_served} served)`}</p>
+                    <p>🍱 <b>Today's Menu:</b> {school.meal_menu}</p>
+                    <div className="pt-1.5 flex gap-2 border-t border-slate-700/50 mt-1.5 text-[8px] font-mono uppercase">
+                      <span className={school.cctv_status === 'ONLINE' ? 'text-emerald-400' : 'text-rose-400'}>CCTV: {school.cctv_status}</span>
+                      <span className={school.water_purifier_status === 'FUNCTIONAL' ? 'text-emerald-400' : 'text-amber-400'}>Water: {school.water_purifier_status}</span>
+                    </div>
+                  </div>
+                </div>
+              </Popup>
+            </Marker>
           ))}
 
           {/* --- PARIVAHAN: CCTV CAMERA MARKERS --- */}
@@ -1477,23 +1683,26 @@ function App() {
           ))}
 
           {/* --- NEW: HEAT ISLAND LAYER --- */}
+          {showHeat && (
+            <HeatmapLayer
+              points={heatZones.map((z) => [
+                z.lat,
+                z.lng,
+                z.perceived_temp_c / 85.0 // Normalize weight based on max expected perceived temp
+              ])}
+            />
+          )}
           {showHeat && heatZones.map((zone) => (
-            <CircleMarker
+            <Marker
               key={zone.id}
-              center={[zone.lat, zone.lng]}
-              radius={zone.risk_level === 'CRITICAL' ? 35 : zone.risk_level === 'HIGH' ? 25 : 15}
-              pathOptions={{
-                fillColor: zone.risk_level === 'CRITICAL' ? '#ef4444' : zone.risk_level === 'HIGH' ? '#f97316' : '#eab308',
-                color: zone.risk_level === 'CRITICAL' ? '#ef4444' : zone.risk_level === 'HIGH' ? '#f97316' : '#eab308',
-                fillOpacity: zone.risk_level === 'CRITICAL' ? 0.4 : 0.2,
-                weight: 2,
-              }}
+              position={[zone.lat, zone.lng]}
+              icon={heatZoneIcon(zone.risk_level)}
             >
-              <Tooltip permanent direction="top" className="bg-slate-900 border-none text-white text-[10px] p-1.5 rounded shadow-xl">
+              <Tooltip direction="top" className="bg-slate-900 border border-slate-700 text-white text-[10px] p-2 rounded shadow-xl">
+                <span className="font-bold">{zone.name}</span><br />
                 <span className={`font-black ${zone.risk_level === 'CRITICAL' ? 'text-red-400' : zone.risk_level === 'HIGH' ? 'text-orange-400' : 'text-yellow-400'}`}>
-                  🌡️ {zone.perceived_temp_c}°C
+                  🌡️ {zone.perceived_temp_c}°C ({zone.risk_level} RISK)
                 </span>
-                <br />{zone.id}
               </Tooltip>
               <Popup className="custom-popup">
                 <div className="p-1 min-w-[180px]">
@@ -1519,7 +1728,7 @@ function App() {
                   <p className="text-slate-400 text-[10px]">🏙️ Type: {zone.type.replace('_', ' ')}</p>
                 </div>
               </Popup>
-            </CircleMarker>
+            </Marker>
           ))}
 
           {/* --- 🚌 NAGARYATRA: BUS STOPS LAYER --- */}
