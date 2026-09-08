@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: nagariq-backend
+    env: python
+    region: oregon
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: TF_ENABLE_ONEDNN_OPTS
+        value: "0"
+      - key: TF_CPP_MIN_LOG_LEVEL
+        value: "2"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: OPENWEATHER_API_KEY
+        value: c115e9fb67a38d51d7c0847cc688fa81

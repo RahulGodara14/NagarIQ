@@ -9,13 +9,26 @@ from dotenv import load_dotenv
 env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
 load_dotenv(dotenv_path=env_path)
 
+# 1. Fetch DATABASE_URL or fallback to local SQLite database
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Quick safeguard to catch the error before SQLAlchemy crashes
 if not SQLALCHEMY_DATABASE_URL:
-    raise ValueError("DATABASE_URL is missing. Please check your .env file!")
+    # Safe fallback if no Postgres DB is configured
+    SQLALCHEMY_DATABASE_URL = "sqlite:///./nagariq.db"
 
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
+# 2. Render Compatibility: Fix 'postgres://' to 'postgresql://' for SQLAlchemy 2.0+
+if SQLALCHEMY_DATABASE_URL.startswith("postgres://"):
+    SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+# 3. Create engine with dialect-specific options
+if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
+    engine = create_engine(
+        SQLALCHEMY_DATABASE_URL,
+        connect_args={"check_same_thread": False}
+    )
+else:
+    engine = create_engine(SQLALCHEMY_DATABASE_URL)
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()

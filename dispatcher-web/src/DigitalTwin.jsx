@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
+import { API_URL } from './config.js';
 
 const CESIUM_TOKEN = import.meta.env.VITE_CESIUM_TOKEN || '';
 
@@ -258,7 +259,7 @@ export default function DigitalTwin({ onClose }) {
   };
 
   const loadUnits = async (Cesium, viewer) => {
-    const res = await axios.get('http://localhost:8000/api/v1/routing/units');
+    const res = await axios.get(`${API_URL}/api/v1/routing/units`);
     const units = res.data?.data || [];
     setStats(s => ({ ...s, units: units.length }));
 
@@ -287,7 +288,7 @@ export default function DigitalTwin({ onClose }) {
   };
 
   const loadIncidents = async (Cesium, viewer) => {
-    const res = await axios.get('http://localhost:8000/api/v1/incidents');
+    const res = await axios.get(`${API_URL}/api/v1/incidents`);
     const incidents = (res.data?.incidents || []).filter(i => i.status !== 'resolved');
     setStats(s => ({ ...s, incidents: incidents.length }));
 
@@ -342,7 +343,7 @@ export default function DigitalTwin({ onClose }) {
 
     /* hospitals */
     try {
-      const res = await axios.get('http://localhost:8000/api/v1/medata/hospitals');
+      const res = await axios.get(`${API_URL}/api/v1/medata/hospitals`);
       const hospitals = res.data?.hospitals || [];
       setStats(s => ({ ...s, hospitals: hospitals.length }));
       hospitals.forEach(h => {
@@ -364,7 +365,7 @@ export default function DigitalTwin({ onClose }) {
 
     /* flood zones */
     try {
-      const res = await axios.get('http://localhost:8000/api/v1/flood/sensors');
+      const res = await axios.get(`${API_URL}/api/v1/flood/sensors`);
       const sensors = res.data?.sensors || [];
       sensors.forEach(s => {
         const r = s.alert_status === 'CRITICAL' ? 0.013 : s.alert_status === 'WARNING' ? 0.009 : 0.005;

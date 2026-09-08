@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, CircleMarker, Tooltip, Polyline, Polygon, useMapEvents, ZoomControl } from 'react-leaflet';
 import HeatmapLayer from './HeatmapLayer.jsx';
+import { API_URL, WS_URL } from './config.js';
 
 // --- LEAFLET CUSTOM MAP ICONS ---
 const pulsingRedIcon = L.divIcon({
@@ -210,7 +211,7 @@ function App() {
     formData.append('citizen_name', 'Rahul Sharma');
 
     try {
-      const res = await axios.post('http://localhost:8000/api/v1/challan/dispute', formData);
+      const res = await axios.post(`${API_URL}/api/v1/challan/dispute`, formData);
       setChallanResult(res.data);
     } catch (err) {
       console.error('[ChallanAI] Error:', err);
@@ -286,8 +287,8 @@ function App() {
   const fetchVidyaData = async () => {
     try {
       const [schoolsRes, eventsRes] = await Promise.all([
-        axios.get('http://localhost:8000/api/v1/vidya/schools'),
-        axios.get('http://localhost:8000/api/v1/vidya/events'),
+        axios.get(`${API_URL}/api/v1/vidya/schools`),
+        axios.get(`${API_URL}/api/v1/vidya/events`),
       ]);
       if (schoolsRes.data.status === 'success') {
         setVidyaSchools(schoolsRes.data.schools);
@@ -319,7 +320,7 @@ function App() {
     if (geofencePoints.length < 3 || !geofenceMessage.trim()) return;
     setGeofenceLoading(true);
     try {
-      await axios.post('http://localhost:8000/api/v1/nagarsankat/broadcast', {
+      await axios.post(`${API_URL}/api/v1/nagarsankat/broadcast`, {
         message: geofenceMessage,
         polygon: geofencePoints
       });
@@ -338,8 +339,8 @@ function App() {
   const fetchWaterData = async () => {
     try {
       const [zonesRes, alertsRes] = await Promise.all([
-        axios.get('http://localhost:8000/api/v1/water/zones'),
-        axios.get('http://localhost:8000/api/v1/water/alerts'),
+        axios.get(`${API_URL}/api/v1/water/zones`),
+        axios.get(`${API_URL}/api/v1/water/alerts`),
       ]);
       setWaterZones(zonesRes.data.zones || []);
       setWaterSummary(zonesRes.data.summary || null);
@@ -350,7 +351,7 @@ function App() {
   const fetchZonePrediction = async (zoneId) => {
     try {
       setWaterLoading(true);
-      const res = await axios.get(`http://localhost:8000/api/v1/water/predict/${zoneId}`);
+      const res = await axios.get(`${API_URL}/api/v1/water/predict/${zoneId}`);
       setWaterPrediction(res.data.prediction || null);
     } catch (e) { console.error('[JalShakti] Predict error:', e); }
     finally { setWaterLoading(false); }
@@ -386,7 +387,7 @@ function App() {
   const toggleAQI = async () => {
     if (!showAQI) {
       try {
-        const res = await axios.get('http://127.0.0.1:8000/api/v1/environment/aqi');
+        const res = await axios.get(`${API_URL}/api/v1/environment/aqi`);
         if (res.data.status === 'success') {
           setAqiData(res.data.data);
         }
@@ -410,7 +411,7 @@ function App() {
       const payload = { status: newStatus };
       if (unit) payload.assigned_unit = unit;
 
-      await axios.patch(`http://127.0.0.1:8000/api/v1/incidents/${incidentId}/status`, payload);
+      await axios.patch(`${API_URL}/api/v1/incidents/${incidentId}/status`, payload);
       fetchIncidents();
     } catch (error) {
       console.error("Failed to update status", error);
@@ -419,7 +420,7 @@ function App() {
 
   const fetchUnits = async () => {
     try {
-      const res = await axios.get('http://127.0.0.1:8000/api/v1/routing/units');
+      const res = await axios.get(`${API_URL}/api/v1/routing/units`);
       if (res.data.status === 'success') {
         setUnits(res.data.data);
       }
@@ -430,7 +431,7 @@ function App() {
 
   const fetchVolunteers = async () => {
     try {
-      const res = await axios.get('http://127.0.0.1:8000/api/v1/volunteers');
+      const res = await axios.get(`${API_URL}/api/v1/volunteers`);
       if (res.data.status === 'success') {
         setVolunteers(res.data.volunteers);
       }
@@ -441,7 +442,7 @@ function App() {
 
   const fetchHeatData = async () => {
     try {
-      const res = await axios.get('http://127.0.0.1:8000/api/v1/heat/zones');
+      const res = await axios.get(`${API_URL}/api/v1/heat/zones`);
       if (res.data.status === 'success') {
         setHeatZones(res.data.zones);
         setHeatAlerts(res.data.alerts);
@@ -453,7 +454,7 @@ function App() {
 
   const fetchLeaderboard = async () => {
     try {
-      const res = await axios.get('http://127.0.0.1:8000/api/v1/nagarscore/leaderboard');
+      const res = await axios.get(`${API_URL}/api/v1/nagarscore/leaderboard`);
       if (res.data.status === 'success') {
         setLeaderboardData(res.data.leaderboard);
       }
@@ -468,10 +469,10 @@ function App() {
     
     if (selectedUnit) {
       updateStatus(incident.id, 'dispatched', selectedUnit.id);
-      axios.patch(`http://127.0.0.1:8000/api/v1/routing/units/${selectedUnit.id}`, { status: 'en_route' }).catch(e => console.error(e));
+      axios.patch(`${API_URL}/api/v1/routing/units/${selectedUnit.id}`, { status: 'en_route' }).catch(e => console.error(e));
 
       try {
-        const routeRes = await axios.get('http://127.0.0.1:8000/api/v1/routing/path', {
+        const routeRes = await axios.get(`${API_URL}/api/v1/routing/path`, {
           params: {
             start_lat: selectedUnit.lat,
             start_lng: selectedUnit.lng,
@@ -526,7 +527,7 @@ function App() {
                 updateStatus(incidentId, 'resolved', route.unitId);
               }
 
-              axios.patch(`http://127.0.0.1:8000/api/v1/routing/units/${route.unitId}`, updatePayload)
+              axios.patch(`${API_URL}/api/v1/routing/units/${route.unitId}`, updatePayload)
                 .catch(e => console.error("Unit move failed", e));
             }
           }
@@ -543,7 +544,7 @@ function App() {
     setShowTraffic(!showTraffic);
     if (!showTraffic) {
       try {
-        const res = await axios.get('http://localhost:8000/api/v1/traffic/predict');
+        const res = await axios.get(`${API_URL}/api/v1/traffic/predict`);
         setTrafficData(res.data.forecast);
       } catch (e) { console.log("Traffic fetch failed", e); }
     }
@@ -553,7 +554,7 @@ function App() {
     setShowHeatmap(!showHeatmap);
     if (!showHeatmap) {
       try {
-        const res = await axios.get('http://localhost:8000/api/v1/analytics/hotspots');
+        const res = await axios.get(`${API_URL}/api/v1/analytics/hotspots`);
         if (res.data.status === 'success') {
           setHeatmapData(res.data.predictions);
         }
@@ -565,7 +566,7 @@ function App() {
     setShowGrievances(!showGrievances);
     if (!showGrievances) {
       try {
-        const res = await axios.get('http://localhost:8000/api/v1/grievances');
+        const res = await axios.get(`${API_URL}/api/v1/grievances`);
         if (res.data.status === 'success') {
             setGrievances(res.data.grievances);
         }
@@ -578,7 +579,7 @@ function App() {
     setShowMedETA(next);
     if (next) {
       try {
-        const res = await axios.get('http://localhost:8000/api/v1/medata/hospitals');
+        const res = await axios.get(`${API_URL}/api/v1/medata/hospitals`);
         if (res.data.status === 'success') setHospitals(res.data.hospitals);
       } catch (e) { console.log('MedETA fetch failed', e); }
     } else {
@@ -591,7 +592,7 @@ function App() {
     setMedRouteLoading(true);
     setMedRoute(null);
     try {
-      const res = await axios.post('http://localhost:8000/api/v1/medata/route', {
+      const res = await axios.post(`${API_URL}/api/v1/medata/route`, {
         incident_lat: incident.lat,
         incident_lng: incident.lng,
         ambulance_id: units.find(u => u.status === 'idle')?.id || 'Amb-01',
@@ -605,7 +606,7 @@ function App() {
 
   const fetchFloodSensors = async () => {
     try {
-      const res = await axios.get('http://localhost:8000/api/v1/flood/sensors');
+      const res = await axios.get(`${API_URL}/api/v1/flood/sensors`);
       if (res.data.status === 'success') {
         setFloodSensors(res.data.sensors);
         setFloodSummary(res.data.summary);
@@ -627,8 +628,8 @@ function App() {
   const fetchTransitData = async () => {
     try {
       const [busRes, stopRes] = await Promise.all([
-        axios.get('http://localhost:8000/api/v1/transit/buses'),
-        axios.get('http://localhost:8000/api/v1/transit/stops'),
+        axios.get(`${API_URL}/api/v1/transit/buses`),
+        axios.get(`${API_URL}/api/v1/transit/stops`),
       ]);
       if (busRes.data.status === 'success') setLiveBuses(busRes.data.buses);
       if (stopRes.data.status === 'success') setBusStops(stopRes.data.stops);
@@ -655,11 +656,11 @@ function App() {
     setShowParivahan(next);
     if (next) {
       try {
-        const res = await axios.get('http://localhost:8000/api/v1/anpr/cameras');
+        const res = await axios.get(`${API_URL}/api/v1/anpr/cameras`);
         if (res.data.status === 'success') setCctvCameras(res.data.cameras);
       } catch (e) { console.log('Camera fetch failed', e); }
       try {
-        const res2 = await axios.get('http://localhost:8000/api/v1/anpr/violations');
+        const res2 = await axios.get(`${API_URL}/api/v1/anpr/violations`);
         if (res2.data.status === 'success') setViolations(res2.data.violations);
       } catch (e) {}
 
@@ -668,7 +669,7 @@ function App() {
         const camId = CAMERAS[camIdx % CAMERAS.length];
         camIdx++;
         try {
-          const res = await axios.post(`http://localhost:8000/api/v1/anpr/scan/${camId}`);
+          const res = await axios.post(`${API_URL}/api/v1/anpr/scan/${camId}`);
           if (res.data.status === 'violation') {
             setViolations(prev => [res.data.data, ...prev].slice(0, 40));
           }
@@ -685,7 +686,7 @@ function App() {
 
   const fetchIncidents = async () => {
     try {
-      const res = await axios.get('http://127.0.0.1:8000/api/v1/incidents');
+      const res = await axios.get(`${API_URL}/api/v1/incidents`);
       if (res.data.status === 'success') {
         const incoming = res.data.data;
         setIncidents(incoming);
@@ -732,7 +733,7 @@ function App() {
     setActiveDrishtiId(incidentId);
     setDrishtiFrame(null);
     setIsDrishtiConnected(false);
-    const ws = new WebSocket(`ws://127.0.0.1:8000/ws/drishti/${incidentId}/view`);
+    const ws = new WebSocket(`${WS_URL}/ws/drishti/${incidentId}/view`);
     drishtiWsRef.current = ws;
     ws.onopen = () => setIsDrishtiConnected(true);
     ws.onmessage = (e) => {
@@ -764,7 +765,7 @@ function App() {
     setAriaLoading(true);
 
     try {
-      const res = await axios.post('http://127.0.0.1:8000/api/v1/aria/chat', { message: msg });
+      const res = await axios.post(`${API_URL}/api/v1/aria/chat`, { message: msg });
       const ariaMsg = {
         role: 'aria',
         text: res.data.response,
@@ -2486,7 +2487,7 @@ function App() {
                       const fd = new FormData();
                       fd.append('photo', file);
                       fd.append('subject_name', faceTraceSubject || 'Unknown');
-                      const res = await axios.post('http://localhost:8000/api/v1/facetrace/search', fd, {
+                      const res = await axios.post(`${API_URL}/api/v1/facetrace/search`, fd, {
                         headers: {'Content-Type': 'multipart/form-data'}
                       });
                       setFaceTraceResult(res.data);
