@@ -1,66 +1,124 @@
 # 🧠 NagarIQ Backend: AI Engine & API Integrations
 
-The Python backend is the intelligent command center for NagarIQ, handling real-time data ingestion, AI-model inference, video streams, and API routing using the highly performant `FastAPI` framework.
+The Python backend is the intelligent command center for NagarIQ. It orchestrates real-time incident triage, automated emergency dispatch, IoT telemetry ingestion, and geospatial coordination using **FastAPI** (Python 3.11+).
 
-## 🏗️ Architecture & Stack
+---
 
-- **Framework**: `FastAPI` (ASGI async web server via `uvicorn`)
-- **Database**: SQLite with `SQLAlchemy` ORM
-- **Auth**: JWT (JSON Web Tokens) with `bcrypt` password hashing for DPDP (Digital Personal Data Protection Act) compliance.
-- **AI Libraries**: `torch`, `transformers` (Hugging Face), `numpy`, `easyocr` (PyTorch)
+## 🏗️ Architecture Overview
 
-## ✨ Core Backend Features
+- **Framework**: `FastAPI` + `uvicorn` (Asynchronous ASGI server)
+- **Database**: `SQLAlchemy` ORM with automated SQLite (`nagariq.db`) and PostgreSQL support
+- **Auth**: JWT (JSON Web Tokens) with `bcrypt` password hashing (DPDP Act compliant)
+- **IoT Background Tasks**: Asynchronous event loops for flood thresholds, water quality monitoring, heat island regression, and transit telemetry
+- **APIs**: Native OpenStreetMap (OSM) hospital data, OSRM road routing, OpenWeatherMap live AQI/rain, and bidirectional WebSockets
 
-### 1. NLP Emergency Classification
-An automated pipeline processing citizen 911/SOS inputs using a fine-tuned **DistilBERT** (Hugging Face) model.
-- Automatically tags reports as: `Fire, Flood, Medical, Robbery, Traffic Violation, Other`.
-- Designed for low-latency (<80ms) multi-class text classification running on a CPU.
+---
 
-### 2. Live Video Hub (Nagrik-Drishti)
-A real-time base64 WebSockets stream hub.
-- Handles multiple incoming citizen camera connections.
-- Seamlessly broadcasts zero-latency frames to multiple connected dispatcher endpoints.
+## 🚀 Quick Setup & Local Run
 
-### 3. Indore-311 (Grievance Processor)
-A sophisticated non-emergency issue reporting module.
-- Logs structural reports (e.g. Broken Streetlights or Potholes).
-- Employs deterministic AI prioritization (1 to 5) based on severity keywords like "dangerous" or "urgent".
+### 1. Prerequisites
+- **Python 3.11 or higher** installed. Check your version:
+  ```bash
+  python --version
+  ```
 
-### 4. Custom LSTM Neural Network Traffic Simulator
-The *Nagar-Gati* system processes historical traffic density data.
-- Built from scratch utilizing `torch.nn.LSTM` memory cells.
-- Predicts rolling 30-minute traffic volume at multiple city junctions to optimize ambulance dispatch.
+### 2. Create and Activate Virtual Environment
 
-### 5. Parivahan Plate Detector (EasyOCR)
-A high-accuracy Optical Character Recognition simulation utilizing computer vision.
-- Renders dummy images of Indian license plates using `Pillow`.
-- Scans streams continuously and extracts alphanumeric patterns via `easyocr`.
-- Cross-references the results with a mock NCRB stolen vehicle watchlist and issues automated alerts.
-
-## 🛠️ Local Development & Setup
-
-Make sure you are running **Python 3.11+** within a virtual environment.
-
-### 1. Requirements
-
-Ensure your virtual environment is activated, then install dependencies:
-```bash
-pip install fastapi "uvicorn[standard]" sqlalchemy pydantic geopy pyjwt python-dotenv passlib[bcrypt]
-pip install torch transformers easyocr pillow numpy requests
+#### Windows (PowerShell):
+```powershell
+python -m venv venv
+.\venv\Scripts\Activate.ps1
 ```
 
-### 2. Running the Server
+#### macOS / Linux:
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
 
-Start the application with hot-reloading:
+---
+
+### 3. Install Dependencies
+
+NagarIQ provides two installation modes depending on your system:
+
+#### Mode A: Production & Cloud-Optimized (Recommended)
+Fast install (~15 seconds), uses **<100MB RAM**, runs reliably on any machine or free cloud host:
+```bash
+pip install -r requirements.txt
+```
+
+#### Mode B: Heavy AI / Local GPU Mode (Optional)
+If you have a dedicated GPU and 16GB+ RAM and want to run the raw local HuggingFace transformers, PyTorch, and DeepFace models locally:
+```bash
+pip install -r requirements-heavy-ai.txt
+```
+
+---
+
+### 4. Configure Environment (Optional)
+
+Create a `.env` file in the `backend/` directory if you wish to override default settings:
+
+```env
+# Database URL (Defaults to local SQLite nagariq.db if left blank)
+DATABASE_URL=sqlite:///./nagariq.db
+
+# JWT Encryption Secret
+SECRET_KEY=efa87f6a2fc92755be05e3c3b59253cd15e77d848cbb4b139334f578940e78a5
+
+# Free OpenWeatherMap API Key (For live AQI and rainfall data)
+OPENWEATHER_API_KEY=c115e9fb67a38d51d7c0847cc688fa81
+```
+
+---
+
+### 5. Run the Server
+
+From the project root:
+```bash
+uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+Or from inside the `backend/` directory:
 ```bash
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-### 3. Database Sync
+---
 
-The database (`nagariq.db`) is generated via SQLAlchemy. To manually force a sync run:
-```python
-python -c "from app.database import engine; from app import models; models.Base.metadata.create_all(bind=engine)"
+## 📖 Interactive API Documentation
+
+Once the server is running, navigate to:
+- **Swagger UI**: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+- **ReDoc UI**: [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
+
+You can execute live requests, view request/response schemas, and test every endpoint directly in your browser.
+
+---
+
+## 🔌 Major API Modules & Endpoints
+
+| Category | Endpoint | Method | Description |
+| :--- | :--- | :--- | :--- |
+| **SOS** | `/api/v1/sos` | `POST` | Ingests emergency request, reverse-geocodes coords, classifies into 8 categories, assigns SOP protocols, broadcasts to WebSockets. |
+| **Incidents** | `/api/v1/incidents` | `GET` | Fetches active incidents with severity filter (P1/P2/P3). |
+| **Routing** | `/api/v1/routing/units` | `GET` | Live locations and statuses of Police, Fire, and Ambulance units. |
+| **Routing** | `/api/v1/routing/path` | `POST` | Calculates real-road turn-by-turn route using OSRM. |
+| **Parivahan**| `/api/v1/anpr/scan` | `GET` | Simulates CCTV plate scan, detects stolen cars and traffic violations. |
+| **FaceTrace**| `/api/v1/facetrace/search`| `POST` | Matches missing person photo across 12 Indore CCTV nodes. |
+| **Jal Shakti**| `/api/v1/water/status` | `GET` | Real-time water reservoir telemetry, turbidity, pH, and pump status. |
+| **Flood** | `/api/v1/flood/sensors` | `GET` | River levels, rainfall sensors, and warning threshold states. |
+| **Heat** | `/api/v1/heat/zones` | `GET` | Micro-climate heat index and mortality risk alerts. |
+| **WebSockets**| `/ws` | `WS` | Live bidirectional event stream for the ICCC dispatch console. |
+
+---
+
+## 🗄️ Database Management
+
+The SQLite database (`nagariq.db`) is automatically initialized with all tables on first startup.
+
+To manually re-create or inspect tables:
+```bash
+python -c "from backend.app.database import engine; from backend.app import models; models.Base.metadata.create_all(bind=engine); print('Database tables verified!')"
 ```
-
-The server natively exposes a Swagger OpenAPI UI document view at `http://localhost:8000/docs`.

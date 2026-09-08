@@ -1,73 +1,90 @@
 # 📱 NagarIQ Citizen Mobile Application
 
-The **NagarIQ Citizen App** serves as the primary gateway for public interaction with the Integrated Command and Control Centre (ICCC). Citizens can access vital civic services, raise emergency alarms, and track local environment metrics instantly.
+The **NagarIQ Citizen App** is the public-facing mobile gateway for smart city residents. It empowers citizens to raise instant emergency alarms, stream live video to dispatchers, report non-emergency civic grievances, check government welfare scheme eligibility, and maintain a secure digital citizen ID.
+
+---
 
 ## 🏗️ Architecture & Stack
 
-- **Framework**: `React Native 0.81.5`
-- **Compiler/SDK**: `Expo ~54.0.33` (Managed Workflow)
-- **Networking**: `Axios` and native `WebSockets`
-- **Device Sensors/APIs**: 
-  - `expo-camera` (Video Streaming)
-  - `expo-image-picker` (Photo Uploads)
-  - `expo-location` (Background/Foreground GPS Tracking)
-  - `expo-secure-store` (Hardware Keychain JWT token storage)
+- **Framework**: `React Native 0.81`
+- **Platform & SDK**: `Expo SDK ~54` (Managed Workflow)
+- **Networking**: `Axios` (REST) + Native `WebSocket` client for live video frames
+- **Hardware Integrations**:
+  - `expo-camera`: Live camera video frame streaming
+  - `expo-image-picker`: Incident photo evidence capture
+  - `expo-location`: High-accuracy GPS geocoding
+  - `expo-secure-store`: Hardware-backed encrypted JWT credential storage
 
-## ✨ Core Application Features
+---
 
-### 1. Zero-Friction SOS Dispatch (DistilBERT NLP)
-- Intuitive SOS interface asking for brief details and photo evidence.
-- Directly pings the Python Backend's **DistilBERT** NLP model to classify the emergency.
-- Fetches the user's explicit coordinates via `expo-location` and bundles it in the payload to the Dispatcher Dashboard.
+## 🚀 Quick Start Guide
 
-### 2. Nagrik-Drishti (Live Video Feed)
-- Advanced real-time video streaming directly from the citizen’s hardware camera.
-- Utilizes the WebSocket protocol (`ws://`) to bypass the limitations of REST for high-framerate media delivery.
-- Relays base64-encoded frame dumps to the backend hub for dispatcher consumption.
+### 1. Prerequisites
+- **Node.js 18+** installed.
+- Install the **Expo Go** app on your physical mobile phone:
+  - [Expo Go for Android (Google Play)](https://play.google.com/store/apps/details?id=host.exp.exponent)
+  - [Expo Go for iOS (App Store)](https://apps.apple.com/app/expo-go/id982107779)
+  *(Or use an Android Emulator / iOS Simulator).*
 
-### 3. Indore-311 (Civic Grievances)
-- Simple "City Health" reporter module.
-- Allows citizens to document missing infrastructure, open potholes, or uncollected garbage.
-- Automatically captures current GPS location for the ICCC tracking maps.
+---
 
-### 4. Smart Scheme Eligibility (AI Engine)
-- Form-driven interface taking demographic inputs (Age, Income, Occupation, Gender, State).
-- Calls an intelligent rule-engine endpoint on the server to recommend specific civic welfare schemes immediately to the user.
+### 2. Installation
 
-### 5. Aadhaar-Mock Authentication
-- The application securely simulates integration with UIDAI using "Aadhaar Hash".
-- Encrypts the JWT output from the FastAPI backend into `expo-secure-store`.
-- Ensures total privacy adherence complying with DPDP regulatory guidelines.
-
-## 🛠️ Local Development & Expo Setting
-
-**Requirements:** Node 18+ and ideally the **Expo Go** app on your physical mobile device.
-
-### 1. Installation
-
-Install all node dependencies.
-
+Navigate into the `citizen-app` directory and install dependencies:
 ```bash
+cd citizen-app
 npm install
 ```
 
-### 2. Networking Setup
+---
 
-**Crucial Step:** Due to how mobile physical devices route IP traffic, `localhost` points to the *device*, not your computer's backend server.
+### 3. Configure Backend Connection (Crucial Step!)
 
-Inside `App.js`, ensure you substitute `192.168.x.x` with your machine's exact local IPv4 Wi-Fi address.
+When running on a physical mobile device, `localhost` refers to the *phone itself*, not your computer.
 
-```javascript
-// App.js
-const BACKEND_IP = "192.168.0.x";
-const API_BASE = `http://${BACKEND_IP}:8000/api/v1`;
-```
+1. Find your computer's local Wi-Fi IPv4 address:
+   - **Windows**: Run `ipconfig` in PowerShell (look for `IPv4 Address`, e.g., `192.168.1.15`).
+   - **macOS / Linux**: Run `ifconfig` or `ip a` (e.g., `192.168.1.15`).
+2. Open `citizen-app/App.js` and set your computer's IP address:
+   ```javascript
+   const BACKEND_IP = "192.168.1.15"; // Replace with your computer's actual Wi-Fi IP
+   const API_BASE = `http://${BACKEND_IP}:8000/api/v1`;
+   ```
 
-### 3. Running Expo Server
+---
 
-Start up the bundler compiler.
+### 4. Start the Application
+
 ```bash
 npx expo start -c
 ```
 
-Scan the **QR code** generated in your terminal or browser (http://localhost:8081) using your mobile phone camera (iOS) or Expo Go App (Android).
+1. A **QR code** will appear in your terminal.
+2. Open the **Expo Go** app on your Android device (or your camera on iOS) and scan the QR code.
+3. The app will bundle and load directly on your mobile device!
+
+---
+
+## ✨ Citizen Features
+
+### 1. 🚨 Zero-Friction SOS Dispatch
+- Tap the central Emergency SOS button.
+- Select emergency type or speak/type brief details.
+- Automatically captures current GPS coordinates and attaches optional photo evidence.
+- Pushes directly into the ICCC Dispatcher dashboard in <1 second.
+
+### 2. 🛡️ Suraksha (Live Camera Video Relay)
+- In high-danger situations, tap **Live Video Feed**.
+- Streams real-time camera frames over WebSockets directly to the dispatcher console so operators can assess the threat live.
+
+### 3. 🏛️ Indore-311 (Civic Health Reporting)
+- Report potholes, broken streetlights, water leaks, or uncollected garbage.
+- Automatically geolocates the grievance and submits to municipal authorities.
+
+### 4. 📋 Nagrik AI Scheme Eligibility
+- Enter basic demographic details (age, occupation, income level).
+- Recommends eligible Central and State welfare programs (e.g., PM Awas Yojana, Ayushman Bharat, Ladli Behna).
+
+### 5. 🪪 NagrikID Digital Document Vault
+- Simulates secure Aadhaar-based authentication.
+- Stores identity tokens securely using hardware keychain encryption (`expo-secure-store`).
