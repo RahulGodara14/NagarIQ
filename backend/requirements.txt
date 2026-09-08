@@ -23,3 +23,6 @@ easyocr>=1.7.1
 opencv-python-headless>=4.9.0
 deepface>=0.0.90
 gdown>=5.1.0
+transformers>=4.38.0
+torch>=2.0.0
+torchvision>=0.15.0

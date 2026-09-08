@@ -7,7 +7,11 @@ from sqlalchemy.orm import Session
 import datetime
 import uuid
 import torch
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
+try:
+    from transformers import AutoTokenizer, AutoModelForSequenceClassification
+except ImportError:
+    AutoTokenizer = None
+    AutoModelForSequenceClassification = None
 import requests
 from geopy.geocoders import Nominatim
 import asyncio
@@ -152,11 +156,16 @@ def reverse_geocode(lat: float, lng: float) -> str:
 # 1. LOAD THE AI MODEL INTO MEMORY
 # ==========================================
 print("Loading NagarIQ Production Model into memory...")
+tokenizer = None
+classification_model = None
 try:
-    model_path = "./model"
-    tokenizer = AutoTokenizer.from_pretrained(model_path)
-    classification_model = AutoModelForSequenceClassification.from_pretrained(model_path)
-    print("AI Model successfully initialized!")
+    if AutoTokenizer is not None and AutoModelForSequenceClassification is not None:
+        model_path = "./model"
+        tokenizer = AutoTokenizer.from_pretrained(model_path)
+        classification_model = AutoModelForSequenceClassification.from_pretrained(model_path)
+        print("AI Model successfully initialized!")
+    else:
+        print("Notice: transformers library not present. Using heuristic classification fallback.")
 except Exception as e:
     print(f"Warning: AI Model not found at ./model. Error: {e}")
 
