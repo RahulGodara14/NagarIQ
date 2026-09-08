@@ -76,6 +76,181 @@ export default function DigitalTwin({ onClose }) {
     return () => { cssLinkRef.current?.remove(); };
   }, []);
 
+  /* ── Data loaders (hoisted before useEffect) ── */
+  const updateAqi = (viewer) => {
+    try {
+      const val = 70 + Math.round(Math.sin(Date.now() / 60000) * 35);
+      setAqi(val);
+      if (!layers.aqiFog || !viewer || viewer.isDestroyed()) return;
+      const cfg = AQI_FOG_MAP.find(f => val <= f.max) || AQI_FOG_MAP.at(-1);
+      if (viewer.scene?.fog) {
+        viewer.scene.fog.density = cfg.density;
+      }
+    } catch (e) {
+      console.warn('[DigitalTwin] updateAqi error:', e);
+    }
+  };
+
+  const loadUnits = async (Cesium, viewer) => {
+    if (!viewer || viewer.isDestroyed()) return;
+    try {
+      const res = await axios.get(`${API_URL}/api/v1/routing/units`);
+      const units = res.data?.data || [];
+      setStats(s => ({ ...s, units: units.length }));
+
+      units.forEach(u => {
+        const { emoji, color } = unitType(u);
+        const img = mkCanvas(emoji, u.status === 'idle' ? '#10b981' : color);
+        const pos = Cesium.Cartesian3.fromDegrees(u.lng, u.lat, 8);
+
+        if (entitiesRef.current.units[u.id]) {
+          entitiesRef.current.units[u.id].position = pos;
+        } else {
+          const e = viewer.entities.add({
+            position: pos,
+            show: layers.units,
+            billboard: {
+              image: img, width: 44, height: 44,
+              verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+              heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+              disableDepthTestDistance: Number.POSITIVE_INFINITY,
+            },
+            description: `<b>${u.name || u.id}</b><br/>Status: ${u.status}`,
+          });
+          entitiesRef.current.units[u.id] = e;
+        }
+      });
+    } catch (e) {
+      console.warn('[DigitalTwin] loadUnits error:', e);
+    }
+  };
+
+  const loadIncidents = async (Cesium, viewer) => {
+    if (!viewer || viewer.isDestroyed()) return;
+    try {
+      const res = await axios.get(`${API_URL}/api/v1/incidents`);
+      const incidents = (res.data?.incidents || []).filter(i => i.status !== 'resolved');
+      setStats(s => ({ ...s, incidents: incidents.length }));
+
+      // Remove resolved
+      const activeSet = new Set(incidents.map(i => i.id));
+      Object.entries(entitiesRef.current).forEach(([key, e]) => {
+        if (key.startsWith('inc-') && !activeSet.has(key.slice(4))) {
+          viewer.entities.remove(e);
+          delete entitiesRef.current[key];
+        }
+      });
+
+      incidents.forEach(inc => {
+        const key = `inc-${inc.id}`;
+        if (entitiesRef.current[key]) return;
+
+        const col = inc.severity === 'P1'
+          ? new Cesium.Color(0.95, 0.1, 0.1, 0.45)
+          : inc.severity === 'P2'
+          ? new Cesium.Color(1, 0.5, 0.05, 0.40)
+          : new Cesium.Color(0.4, 0.4, 1, 0.35);
+
+        const img = mkCanvas(
+          inc.severity === 'P1' ? '🔴' : inc.severity === 'P2' ? '🟠' : '🔵', '#00000000', 48, 48
+        );
+
+        const e = viewer.entities.add({
+          position: Cesium.Cartesian3.fromDegrees(inc.lng, inc.lat, 60),
+          cylinder: {
+            length: 120, topRadius: 0, bottomRadius: 55,
+            material: new Cesium.ColorMaterialProperty(col),
+            outline: true,
+            outlineColor: col.withAlpha(0.9),
+            outlineWidth: 2,
+            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+          },
+          billboard: {
+            image: img, width: 36, height: 36,
+            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          },
+          description: `<b>${inc.incident_type}</b><br/>${inc.address}<br/>Severity: ${inc.severity}`,
+        });
+        entitiesRef.current[key] = e;
+      });
+    } catch (e) {
+      console.warn('[DigitalTwin] loadIncidents error:', e);
+    }
+  };
+
+  const loadStaticLayers = async (Cesium, viewer) => {
+    if (!viewer || viewer.isDestroyed()) return;
+    if (entitiesRef.current.loaded) return;
+    entitiesRef.current.loaded = true;
+
+    /* hospitals */
+    try {
+      const res = await axios.get(`${API_URL}/api/v1/medata/hospitals`);
+      const hospitals = res.data?.hospitals || [];
+      setStats(s => ({ ...s, hospitals: hospitals.length }));
+      hospitals.forEach(h => {
+        const col = h.status === 'AVAILABLE' ? '#059669' : h.status === 'BUSY' ? '#d97706' : '#dc2626';
+        viewer.entities.add({
+          position: Cesium.Cartesian3.fromDegrees(h.lng, h.lat, 12),
+          show: layers.hospitals,
+          billboard: {
+            image: mkCanvas('🏥', col),
+            width: 42, height: 42,
+            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          },
+          description: `<b>${h.name}</b><br/>Emergency: ${h.available_emergency} beds<br/>ICU: ${h.available_icu} beds`,
+        });
+      });
+    } catch { /* silent */ }
+
+    /* flood zones */
+    try {
+      const res = await axios.get(`${API_URL}/api/v1/flood/sensors`);
+      const sensors = res.data?.sensors || [];
+      sensors.forEach(s => {
+        const r = s.alert_status === 'CRITICAL' ? 0.013 : s.alert_status === 'WARNING' ? 0.009 : 0.005;
+        const a = s.alert_status === 'CRITICAL' ? 0.38  : s.alert_status === 'WARNING' ? 0.22  : 0.12;
+        const color = s.alert_status === 'CRITICAL'
+          ? new Cesium.Color(0.9, 0.1, 0.1, a)
+          : s.alert_status === 'WARNING'
+          ? new Cesium.Color(1.0, 0.6, 0.0, a)
+          : new Cesium.Color(0.2, 0.5, 1.0, a);
+
+        const pts = [];
+        for (let i = 0; i <= 36; i++) {
+          const ang = (i / 36) * 2 * Math.PI;
+          pts.push(s.lng + r * Math.cos(ang), s.lat + r * Math.sin(ang));
+        }
+
+        viewer.entities.add({
+          show: layers.flood,
+          polygon: {
+            hierarchy: Cesium.Cartesian3.fromDegreesArray(pts),
+            material: new Cesium.ColorMaterialProperty(color),
+            outline: true,
+            outlineColor: color.withAlpha(0.85),
+            outlineWidth: 3,
+            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+          },
+          description: `<b>🌊 ${s.name}</b><br/>Level: ${s.current_level_m}m / ${s.danger_level_m}m<br/>Status: ${s.alert_status}`,
+        });
+      });
+    } catch { /* silent */ }
+  };
+
+  const loadAll = async (Cesium, viewer) => {
+    if (!viewer || viewer.isDestroyed()) return;
+    await Promise.allSettled([
+      loadUnits(Cesium, viewer),
+      loadIncidents(Cesium, viewer),
+      loadStaticLayers(Cesium, viewer),
+      updateAqi(viewer),
+    ]);
+  };
 
   /* ── main Cesium init ── */
   useEffect(() => {
@@ -246,165 +421,6 @@ export default function DigitalTwin({ onClose }) {
     if (!viewer || viewer.isDestroyed()) return;
     viewer.scene.fog.enabled = layers.aqiFog;
   }, [layers.aqiFog]);
-
-  /* ── Data loaders ── */
-  const loadAll = async (Cesium, viewer) => {
-    if (!viewer || viewer.isDestroyed()) return;
-    await Promise.allSettled([
-      loadUnits(Cesium, viewer),
-      loadIncidents(Cesium, viewer),
-      loadStaticLayers(Cesium, viewer),
-      updateAqi(viewer),
-    ]);
-  };
-
-  const loadUnits = async (Cesium, viewer) => {
-    const res = await axios.get(`${API_URL}/api/v1/routing/units`);
-    const units = res.data?.data || [];
-    setStats(s => ({ ...s, units: units.length }));
-
-    units.forEach(u => {
-      const { emoji, color } = unitType(u);
-      const img = mkCanvas(emoji, u.status === 'idle' ? '#10b981' : color);
-      const pos = Cesium.Cartesian3.fromDegrees(u.lng, u.lat, 8);
-
-      if (entitiesRef.current.units[u.id]) {
-        entitiesRef.current.units[u.id].position = pos;
-      } else {
-        const e = viewer.entities.add({
-          position: pos,
-          show: layers.units,
-          billboard: {
-            image: img, width: 44, height: 44,
-            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-            disableDepthTestDistance: Number.POSITIVE_INFINITY,
-          },
-          description: `<b>${u.name || u.id}</b><br/>Status: ${u.status}`,
-        });
-        entitiesRef.current.units[u.id] = e;
-      }
-    });
-  };
-
-  const loadIncidents = async (Cesium, viewer) => {
-    const res = await axios.get(`${API_URL}/api/v1/incidents`);
-    const incidents = (res.data?.incidents || []).filter(i => i.status !== 'resolved');
-    setStats(s => ({ ...s, incidents: incidents.length }));
-
-    // Remove resolved
-    const activeSet = new Set(incidents.map(i => i.id));
-    Object.entries(entitiesRef.current).forEach(([key, e]) => {
-      if (key.startsWith('inc-') && !activeSet.has(key.slice(4))) {
-        viewer.entities.remove(e);
-        delete entitiesRef.current[key];
-      }
-    });
-
-    incidents.forEach(inc => {
-      const key = `inc-${inc.id}`;
-      if (entitiesRef.current[key]) return;
-
-      const col = inc.severity === 'P1'
-        ? new Cesium.Color(0.95, 0.1, 0.1, 0.45)
-        : inc.severity === 'P2'
-        ? new Cesium.Color(1, 0.5, 0.05, 0.40)
-        : new Cesium.Color(0.4, 0.4, 1, 0.35);
-
-      const img = mkCanvas(
-        inc.severity === 'P1' ? '🔴' : inc.severity === 'P2' ? '🟠' : '🔵', '#00000000', 48, 48
-      );
-
-      const e = viewer.entities.add({
-        position: Cesium.Cartesian3.fromDegrees(inc.lng, inc.lat, 60),
-        cylinder: {
-          length: 120, topRadius: 0, bottomRadius: 55,
-          material: new Cesium.ColorMaterialProperty(col),
-          outline: true,
-          outlineColor: col.withAlpha(0.9),
-          outlineWidth: 2,
-          heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-        },
-        billboard: {
-          image: img, width: 36, height: 36,
-          verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-          heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-          disableDepthTestDistance: Number.POSITIVE_INFINITY,
-        },
-        description: `<b>${inc.incident_type}</b><br/>${inc.address}<br/>Severity: ${inc.severity}`,
-      });
-      entitiesRef.current[key] = e;
-    });
-  };
-
-  const loadStaticLayers = async (Cesium, viewer) => {
-    if (entitiesRef.current.loaded) return;
-    entitiesRef.current.loaded = true;
-
-    /* hospitals */
-    try {
-      const res = await axios.get(`${API_URL}/api/v1/medata/hospitals`);
-      const hospitals = res.data?.hospitals || [];
-      setStats(s => ({ ...s, hospitals: hospitals.length }));
-      hospitals.forEach(h => {
-        const col = h.status === 'AVAILABLE' ? '#059669' : h.status === 'BUSY' ? '#d97706' : '#dc2626';
-        viewer.entities.add({
-          position: Cesium.Cartesian3.fromDegrees(h.lng, h.lat, 12),
-          show: layers.hospitals,
-          billboard: {
-            image: mkCanvas('🏥', col),
-            width: 42, height: 42,
-            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-            disableDepthTestDistance: Number.POSITIVE_INFINITY,
-          },
-          description: `<b>${h.name}</b><br/>Emergency: ${h.available_emergency} beds<br/>ICU: ${h.available_icu} beds`,
-        });
-      });
-    } catch { /* silent */ }
-
-    /* flood zones */
-    try {
-      const res = await axios.get(`${API_URL}/api/v1/flood/sensors`);
-      const sensors = res.data?.sensors || [];
-      sensors.forEach(s => {
-        const r = s.alert_status === 'CRITICAL' ? 0.013 : s.alert_status === 'WARNING' ? 0.009 : 0.005;
-        const a = s.alert_status === 'CRITICAL' ? 0.38  : s.alert_status === 'WARNING' ? 0.22  : 0.12;
-        const color = s.alert_status === 'CRITICAL'
-          ? new Cesium.Color(0.9, 0.1, 0.1, a)
-          : s.alert_status === 'WARNING'
-          ? new Cesium.Color(1.0, 0.6, 0.0, a)
-          : new Cesium.Color(0.2, 0.5, 1.0, a);
-
-        const pts = [];
-        for (let i = 0; i <= 36; i++) {
-          const ang = (i / 36) * 2 * Math.PI;
-          pts.push(s.lng + r * Math.cos(ang), s.lat + r * Math.sin(ang));
-        }
-
-        viewer.entities.add({
-          show: layers.flood,
-          polygon: {
-            hierarchy: Cesium.Cartesian3.fromDegreesArray(pts),
-            material: new Cesium.ColorMaterialProperty(color),
-            outline: true,
-            outlineColor: color.withAlpha(0.85),
-            outlineWidth: 3,
-            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-          },
-          description: `<b>🌊 ${s.name}</b><br/>Level: ${s.current_level_m}m / ${s.danger_level_m}m<br/>Status: ${s.alert_status}`,
-        });
-      });
-    } catch { /* silent */ }
-  };
-
-  const updateAqi = (viewer) => {
-    const val = 70 + Math.round(Math.sin(Date.now() / 60000) * 35);
-    setAqi(val);
-    if (!layers.aqiFog) return;
-    const cfg = AQI_FOG_MAP.find(f => val <= f.max) || AQI_FOG_MAP.at(-1);
-    viewer.scene.fog.density = cfg.density;
-  };
 
   const reset3dView = async () => {
     const viewer = viewerRef.current;
