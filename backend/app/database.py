@@ -27,7 +27,17 @@ if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
         connect_args={"check_same_thread": False}
     )
 else:
-    engine = create_engine(SQLALCHEMY_DATABASE_URL)
+    try:
+        engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"connect_timeout": 5})
+        with engine.connect() as conn:
+            pass
+    except Exception as e:
+        print(f"Warning: Primary database connection failed ({e}). Falling back to SQLite nagariq.db")
+        SQLALCHEMY_DATABASE_URL = "sqlite:///./nagariq.db"
+        engine = create_engine(
+            SQLALCHEMY_DATABASE_URL,
+            connect_args={"check_same_thread": False}
+        )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

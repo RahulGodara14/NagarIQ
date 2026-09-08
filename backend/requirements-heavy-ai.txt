@@ -1,0 +1,8 @@
+# NagarIQ Heavy AI Dependencies (For high-RAM local machines or GPU instances with >= 4GB RAM)
+# Not recommended for Render Free Tier (512MB RAM)
+-r requirements.txt
+torch>=2.0.0
+torchvision>=0.15.0
+transformers>=4.38.0
+easyocr>=1.7.1
+deepface>=0.0.90

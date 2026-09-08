@@ -10,6 +10,13 @@ __pycache__/
 .idea/
 .DS_Store
 
+# Databases & Secrets
+*.db
+*.sqlite
+*.sqlite3
+.env
+.env.local
+
 # User specified ignore items
 how to run
 download file/
